@@ -1,10 +1,14 @@
+# Target binary
 all: fs
 
-fs: main.o disk.o
-	gcc -o fs main.o disk.o
+# Main executable built from all object files
+fs: main.o disk.o fs.o
+	gcc -o fs main.o disk.o fs.o
 
+# Compile any .c file into .o
 %.o: %.c
 	gcc -c $<
 
+# Clean up build artifacts
 clean:
-	rm -f *.o fs
+	rm -f *.o fs disk.img
