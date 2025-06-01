@@ -40,3 +40,53 @@ int mkfs_fs(const char *disk_path) {
     disk_close();
     return 0;
 }
+
+// Global buffer for bitmap (loaded once)
+static uint8_t bitmap[BLOCK_SIZE];
+
+// Load bitmap from disk
+void load_bitmap() {
+    disk_read(BITMAP_BLOCK, bitmap);
+}
+
+// Save bitmap to disk
+void save_bitmap() {
+    disk_write(BITMAP_BLOCK, bitmap);
+}
+
+// Mark a block as used
+void mark_block_used(int block_num) {
+    int rel = block_num - DATA_BLOCK_START;
+    bitmap[rel / 8] |= (1 << (rel % 8));
+}
+
+// Mark a block as free
+void mark_block_free(int block_num) {
+    int rel = block_num - DATA_BLOCK_START;
+    bitmap[rel / 8] &= ~(1 << (rel % 8));
+}
+
+// Check if block is free
+int is_block_free(int block_num) {
+    int rel = block_num - DATA_BLOCK_START;
+    return !(bitmap[rel / 8] & (1 << (rel % 8)));
+}
+
+// Allocate a free block and return its number, or -1 if full
+int allocate_block() {
+    for (int i = 0; i < DATA_BLOCK_COUNT; i++) {
+        int block_num = i + DATA_BLOCK_START;
+        if (is_block_free(block_num)) {
+            mark_block_used(block_num);
+            save_bitmap();
+            return block_num;
+        }
+    }
+    return -1; // No free block found
+}
+
+// Free a block
+void free_block(int block_num) {
+    mark_block_free(block_num);
+    save_bitmap();
+}
