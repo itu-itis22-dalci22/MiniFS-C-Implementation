@@ -6,15 +6,18 @@ int main() {
     mkfs_fs("disk.img");
     disk_open("disk.img");
 
-    load_bitmap();
+    Inode root;
+    read_inode(0, &root);
+    printf("Root inode: valid=%d dir=%d size=%d\n",
+           root.is_valid, root.is_directory, root.size);
 
-    int b = allocate_block();
-    printf("Allocated block: %d\n", b);
+    int inum = allocate_inode();
+    printf("Allocated inode: %d\n", inum);
 
-    printf("Block %d is now: %s\n", b, is_block_free(b) ? "free" : "used");
-
-    free_block(b);
-    printf("Block %d after free: %s\n", b, is_block_free(b) ? "free" : "used");
+    Inode new_inode;
+    read_inode(inum, &new_inode);
+    printf("New inode: valid=%d dir=%d size=%d\n",
+           new_inode.is_valid, new_inode.is_directory, new_inode.size);
 
     disk_close();
     return 0;
