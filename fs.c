@@ -390,7 +390,6 @@ int mkdir_fs(const char *path) {
     return 0;
 }
 
-
 // create_fs(): creates an empty file at the given absolute path.
 // Returns 0 on success, -1 on failure.
 int create_fs(const char *path) {
@@ -711,3 +710,101 @@ int delete_fs(const char *path) {
     fprintf(stderr, "delete_fs: Could not remove entry from parent directory\n");
     return -1;
 }
+
+int rmdir_fs(const char *path) {
+    char parts[64][MAX_FILENAME_LEN + 1];
+    int count;
+
+    // Step 1: Parse and validate the path
+    if (split_path(path, parts, &count) != 0 || count == 0) {
+        fprintf(stderr, "rmdir_fs: Invalid or empty path\n");
+        return -1;
+    }
+
+    // Step 2: Resolve parent directory
+    int parent_inum;
+    if (path_to_inode(path, &parent_inum, 1) != 0) {
+        fprintf(stderr, "rmdir_fs: Failed to resolve parent for %s\n", path);
+        return -1;
+    }
+
+    Inode parent;
+    if (read_inode(parent_inum, &parent) != 0 || !parent.is_valid || !parent.is_directory) {
+        fprintf(stderr, "rmdir_fs: Invalid parent inode %d\n", parent_inum);
+        return -1;
+    }
+
+    // Step 3: Extract target name and resolve its inode
+    char *target_name = parts[count - 1];
+
+    DirectoryEntry target_entry;
+    if (find_dir_entry(&parent, target_name, &target_entry) != 0) {
+        fprintf(stderr, "rmdir_fs: Entry '%s' not found in parent\n", target_name);
+        return -1;
+    }
+
+    int target_inum = target_entry.inum;
+
+    Inode target;
+    if (read_inode(target_inum, &target) != 0 || !target.is_valid) {
+        fprintf(stderr, "rmdir_fs: Invalid or unreadable inode %d\n", target_inum);
+        return -1;
+    }
+
+    // Step 4: Ensure it is a directory
+    if (!target.is_directory) {
+        fprintf(stderr, "rmdir_fs: '%s' is not a directory\n", target_name);
+        return -1;
+    }
+
+    // Step 5: Ensure directory is empty
+    char block[BLOCK_SIZE];
+    for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+        if (target.direct_blocks[i] == 0) continue;
+        if (disk_read(target.direct_blocks[i], block) != 0) return -1;
+        DirectoryEntry *entries = (DirectoryEntry *)block;
+        int entry_count = BLOCK_SIZE / sizeof(DirectoryEntry);
+        for (int j = 0; j < entry_count; j++) {
+            if (entries[j].inum != 0) {
+                fprintf(stderr, "rmdir_fs: Directory '%s' is not empty\n", target_name);
+                return -1;
+            }
+        }
+    }
+
+    // Step 6: Free all blocks
+    for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+        if (target.direct_blocks[i] != 0) {
+            free_block(target.direct_blocks[i]);
+            target.direct_blocks[i] = 0;
+        }
+    }
+
+    // Step 7: Mark inode as invalid
+    target.is_valid = 0;
+    write_inode(target_inum, &target);
+
+    // Step 8: Remove directory entry from parent
+    for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+        if (parent.direct_blocks[i] == 0) continue;
+        if (disk_read(parent.direct_blocks[i], block) != 0) return -1;
+        DirectoryEntry *entries = (DirectoryEntry *)block;
+        int entry_count = BLOCK_SIZE / sizeof(DirectoryEntry);
+        for (int j = 0; j < entry_count; j++) {
+            if (entries[j].inum == target_inum &&
+                strcmp(entries[j].name, target_name) == 0) {
+                entries[j].inum = 0;
+                entries[j].name[0] = '\0';
+                disk_write(parent.direct_blocks[i], block);
+                parent.size -= sizeof(DirectoryEntry);
+                write_inode(parent_inum, &parent);
+                return 0;
+            }
+        }
+    }
+
+    fprintf(stderr, "rmdir_fs: Failed to remove entry from parent\n");
+    return -1;
+}
+
+
