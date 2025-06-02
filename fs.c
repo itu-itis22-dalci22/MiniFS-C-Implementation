@@ -618,3 +618,96 @@ int read_fs(const char *path, void *buffer, size_t size) {
     return total_read;
 }
 
+int delete_fs(const char *path) {
+    // Step 1: Parse and validate the path
+    char parts[64][MAX_FILENAME_LEN + 1];
+    int count;
+    if (split_path(path, parts, &count) != 0 || count == 0) {
+        fprintf(stderr, "delete_fs: Invalid or empty path\n");
+        return -1;
+    }
+
+    // Step 2: Resolve parent directory
+    int parent_inum;
+    if (path_to_inode(path, &parent_inum, 1) != 0) {
+        fprintf(stderr, "delete_fs: Failed to resolve parent for %s\n", path);
+        return -1;
+    }
+
+    // Step 3: Read parent inode
+    Inode parent;
+    if (read_inode(parent_inum, &parent) != 0 || !parent.is_valid || !parent.is_directory) {
+        fprintf(stderr, "delete_fs: Invalid parent inode %d\n", parent_inum);
+        return -1;
+    }
+
+    // Step 4: Get the name of the file/directory to delete
+    char *target_name = parts[count - 1];
+
+    // Step 5: Find the directory entry inside the parent
+    DirectoryEntry target_entry;
+    if (find_dir_entry(&parent, target_name, &target_entry) != 0) {
+        fprintf(stderr, "delete_fs: Entry '%s' not found in parent\n", target_name);
+        return -1;
+    }
+
+    int target_inum = target_entry.inum;
+
+    // Step 6: Read the inode of the target
+    Inode target;
+    if (read_inode(target_inum, &target) != 0 || !target.is_valid) {
+        fprintf(stderr, "delete_fs: Invalid or unreadable inode %d\n", target_inum);
+        return -1;
+    }
+
+    // Step 7: If target is a directory, ensure it's empty
+    if (target.is_directory) {
+        char block[BLOCK_SIZE];
+        for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+            if (target.direct_blocks[i] == 0) continue;
+            disk_read(target.direct_blocks[i], block);
+            DirectoryEntry *entries = (DirectoryEntry *)block;
+            int num_entries = BLOCK_SIZE / sizeof(DirectoryEntry);
+            for (int j = 0; j < num_entries; j++) {
+                if (entries[j].inum != 0) {
+                    fprintf(stderr, "delete_fs: Directory '%s' is not empty\n", target_name);
+                    return -1;
+                }
+            }
+        }
+    }
+
+    // Step 8: Free all data blocks of the target
+    for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+        if (target.direct_blocks[i] != 0) {
+            free_block(target.direct_blocks[i]);
+            target.direct_blocks[i] = 0;
+        }
+    }
+
+    // Step 9: Invalidate the inode
+    target.is_valid = 0;
+    write_inode(target_inum, &target);
+
+    // Step 10: Remove the directory entry from the parent
+    char block[BLOCK_SIZE];
+    for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+        if (parent.direct_blocks[i] == 0) continue;
+        disk_read(parent.direct_blocks[i], block);
+        DirectoryEntry *entries = (DirectoryEntry *)block;
+        int entry_count = BLOCK_SIZE / sizeof(DirectoryEntry);
+        for (int j = 0; j < entry_count; j++) {
+            if (entries[j].inum == target_inum && strcmp(entries[j].name, target_name) == 0) {
+                entries[j].inum = 0;
+                entries[j].name[0] = '\0';  // Clear name
+                disk_write(parent.direct_blocks[i], block);
+                parent.size -= sizeof(DirectoryEntry);
+                write_inode(parent_inum, &parent);
+                return 0;
+            }
+        }
+    }
+
+    fprintf(stderr, "delete_fs: Could not remove entry from parent directory\n");
+    return -1;
+}

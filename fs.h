@@ -71,6 +71,7 @@ int mkdir_fs(const char *path);
 int create_fs(const char *path);
 int write_fs(const char *path, const void *data, size_t size);
 int read_fs(const char *path, void *buffer, size_t size);
+int delete_fs(const char *path);
 
 
 #endif

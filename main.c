@@ -55,8 +55,15 @@ int main() {
            printf("Failed to read from file %s.\n", file_path);
            return 1;
        }
-   
-       // Step 7: Close the disk
+       
+        // Step 7: Delete the file
+        if (delete_fs("/docs/report.txt") == 0) {
+            printf("Deleted file successfully.\n");
+        } else {
+            printf("Failed to delete file.\n");
+        }
+
+       // Step 8: Close the disk
        disk_close();
        return 0;
 }
