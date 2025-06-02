@@ -55,6 +55,18 @@ int main() {
         printf("Failed to read from file %s.\n", file_path);
         return 1;
     }
+
+    // ls // List the contents of the directory
+    DirectoryEntry entries[10];  // Assuming we won't have more than 10 entries
+    int num_entries = ls_fs("/", entries, 10);
+    if (num_entries >= 0) {
+        printf("Contents of %s:\n", "/");
+        for (int i = 0; i < num_entries; i++) {
+            printf(" - %s (inode: %u)\n", entries[i].name, entries[i].inum);
+        }
+    } else {
+        printf("Failed to list contents of directory %s.\n", "/");
+    }
     
     // Step 7: Delete the file
     if (delete_fs("/docs/report.txt") == 0) {

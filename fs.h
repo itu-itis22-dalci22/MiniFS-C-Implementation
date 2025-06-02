@@ -15,7 +15,6 @@
 #define DATA_BLOCK_START 11
 #define DATA_BLOCK_COUNT (BLOCK_COUNT - DATA_BLOCK_START)
 #define MAX_DIRECT_POINTERS 4
-
 #define MAX_FILENAME_LEN 27
 
 typedef struct {
@@ -37,7 +36,7 @@ typedef struct {
     uint32_t direct_blocks[MAX_DIRECT_POINTERS];
     uint8_t  is_valid;
     uint8_t  is_directory;
-    uint16_t reserved; // manually align to 4 bytes
+    int owner_id;
 } Inode;
 
 // --- Function declarations ---
@@ -73,6 +72,7 @@ int write_fs(const char *path, const void *data, size_t size);
 int read_fs(const char *path, void *buffer, size_t size);
 int delete_fs(const char *path);
 int rmdir_fs(const char *path);
+int ls_fs(const char *path, DirectoryEntry *entries, int max_entries);
 
 
 #endif

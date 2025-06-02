@@ -203,7 +203,7 @@ int split_path(const char *path, char parts[][MAX_FILENAME_LEN + 1], int *count)
 
     while (p && *p && *count < 64) {
         const char *slash = strchr(p, '/');  // Find next '/'
-        int len = slash ? (slash - p) : strlen(p);  // Length of this part
+        size_t len = slash ? (size_t)(slash - p) : strlen(p);
         if (len > MAX_FILENAME_LEN || len == 0) return -1;  // Check name length
 
         strncpy(parts[*count], p, len);  // Copy the part
@@ -215,7 +215,6 @@ int split_path(const char *path, char parts[][MAX_FILENAME_LEN + 1], int *count)
 
     return 0;
 }
-
 
 int find_dir_entry(Inode *dir_inode, const char *name, DirectoryEntry *out_entry) {
     char block[BLOCK_SIZE];
@@ -650,7 +649,7 @@ int delete_fs(const char *path) {
         return -1;
     }
 
-    int target_inum = target_entry.inum;
+    uint32_t target_inum = target_entry.inum;
 
     // Step 6: Read the inode of the target
     Inode target;
@@ -743,7 +742,7 @@ int rmdir_fs(const char *path) {
         return -1;
     }
 
-    int target_inum = target_entry.inum;
+    uint32_t target_inum = target_entry.inum;
 
     Inode target;
     if (read_inode(target_inum, &target) != 0 || !target.is_valid) {
@@ -806,5 +805,43 @@ int rmdir_fs(const char *path) {
     fprintf(stderr, "rmdir_fs: Failed to remove entry from parent\n");
     return -1;
 }
+
+int ls_fs(const char *path, DirectoryEntry *entries, int max_entries) {
+    if (!entries || max_entries <= 0) return -1;
+
+    // Step 1: Resolve the directory inode
+    int dir_inum;
+    if (path_to_inode(path, &dir_inum, 0) != 0) {
+        fprintf(stderr, "ls_fs: Path '%s' not found\n", path);
+        return -1;
+    }
+
+    Inode dir;
+    if (read_inode(dir_inum, &dir) != 0 || !dir.is_valid || !dir.is_directory) {
+        fprintf(stderr, "ls_fs: Inode %d is not a valid directory\n", dir_inum);
+        return -1;
+    }
+
+    // Step 2: Scan directory blocks for entries
+    int total_found = 0;
+    char block[BLOCK_SIZE];
+
+    for (int i = 0; i < MAX_DIRECT_POINTERS && total_found < max_entries; i++) {
+        if (dir.direct_blocks[i] == 0) continue;
+        if (disk_read(dir.direct_blocks[i], block) != 0) return -1;
+
+        DirectoryEntry *block_entries = (DirectoryEntry *)block;
+        int count = BLOCK_SIZE / sizeof(DirectoryEntry);
+
+        for (int j = 0; j < count && total_found < max_entries; j++) {
+            if (block_entries[j].inum != 0) {
+                entries[total_found++] = block_entries[j];
+            }
+        }
+    }
+
+    return total_found;
+}
+
 
 
