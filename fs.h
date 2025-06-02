@@ -15,6 +15,12 @@
 #define DATA_BLOCK_COUNT (BLOCK_COUNT - DATA_BLOCK_START)
 #define MAX_DIRECT_POINTERS 4
 
+#define MAX_FILENAME_LEN 27
+
+typedef struct {
+    uint32_t inum;
+    char name[MAX_FILENAME_LEN + 1];  // +1 for null terminator
+} DirectoryEntry;
 
 typedef struct {
     uint32_t magic;
@@ -51,5 +57,13 @@ int write_inode(int inode_num, Inode *inode);
 int allocate_inode();
 void free_inode(int inode_num);
 
+// Path Resolution function declarations
+
+int split_path(const char *path, char dir[][MAX_FILENAME_LEN + 1], int *count);
+int find_dir_entry(Inode *dir_inode, const char *name, DirectoryEntry *out_entry);
+int path_to_inode(const char *path, int *out_inum, int want_parent);
+
+// Directory operations
+int mkdir_fs(const char *path);
 
 #endif

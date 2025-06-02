@@ -197,4 +197,133 @@ int mkfs_fs(const char *disk_path) {
     disk_close();
     return 0;
 }
+ 
+int split_path(const char *path, char parts[][MAX_FILENAME_LEN + 1], int *count) {
+    if (!path || path[0] != '/' || !parts || !count) return -1;  // Validate all input
 
+    *count = 0;
+    const char *p = path + 1; // skip initial '/'
+
+    while (p && *p && *count < 64) {
+        const char *slash = strchr(p, '/');  // Find next '/'
+        int len = slash ? (slash - p) : strlen(p);  // Length of this part
+
+        if (len > MAX_FILENAME_LEN || len == 0) return -1;  // Check name length
+
+        strncpy(parts[*count], p, len);  // Copy the part
+        parts[*count][len] = '\0';       // Null-terminate
+        (*count)++;
+
+        p = slash ? slash + 1 : NULL;    // Move to next component
+    }
+
+    return 0;
+}
+
+
+int find_dir_entry(Inode *dir_inode, const char *name, DirectoryEntry *out_entry) {
+    char block[BLOCK_SIZE];
+
+    for (int i = 0; i < MAX_DIRECT_POINTERS; i++) {
+        if (dir_inode->direct_blocks[i] == 0) continue;
+
+        disk_read(dir_inode->direct_blocks[i], block);
+
+        int count = BLOCK_SIZE / sizeof(DirectoryEntry);
+        DirectoryEntry *entries = (DirectoryEntry *)block;
+
+        for (int j = 0; j < count; j++) {
+            if (entries[j].inum != 0 && strcmp(entries[j].name, name) == 0) {
+                if (out_entry) *out_entry = entries[j];
+                return 0;
+            }
+        }
+    }
+    return -1; // not found
+}
+
+int path_to_inode(const char *path, int *out_inum, int want_parent) {
+    char parts[64][MAX_FILENAME_LEN + 1];
+    int count=0;
+
+    if (split_path(path, parts, &count) != 0) return -1;
+
+    int current_inum = 0;  // Start from root
+    Inode inode;
+
+    for (int i = 0; i < count - want_parent; i++) {
+        if (read_inode(current_inum, &inode) != 0) return -1;
+        if (!inode.is_valid || !inode.is_directory) return -1;
+
+        DirectoryEntry entry;
+        if (find_dir_entry(&inode, parts[i], &entry) != 0) return -1;
+
+        current_inum = entry.inum;
+    }
+
+    if (out_inum) *out_inum = current_inum;
+    return 0;
+}
+
+// Mkdir function
+
+int mkdir_fs(const char *path) {
+    int parent_inum;
+    if (path_to_inode(path, &parent_inum, 1) != 0) return -1;
+
+    char parts[64][MAX_FILENAME_LEN + 1];
+    int count;
+    if (split_path(path, parts, &count) != 0) return -1;
+
+    Inode parent;
+    if (read_inode(parent_inum, &parent) != 0) return -1;
+
+    // Check if already exists
+    DirectoryEntry dummy;
+    if (find_dir_entry(&parent, parts[count - 1], &dummy) == 0) return -1;
+
+    // Allocate new inode
+    int new_inum = allocate_inode();
+    if (new_inum < 0) return -1;
+
+    Inode new_dir = {
+        .is_valid = 1,
+        .is_directory = 1,
+        .size = 0
+    };
+    memset(new_dir.direct_blocks, 0, sizeof(new_dir.direct_blocks));
+    write_inode(new_inum, &new_dir);
+
+    // Add to parent's directory block
+    char block[BLOCK_SIZE];
+    DirectoryEntry *entries = (DirectoryEntry *)block;
+    int found_slot = 0;
+
+    for (int i = 0; i < MAX_DIRECT_POINTERS && !found_slot; i++) {
+        if (parent.direct_blocks[i] == 0) {
+            int new_block = allocate_block();
+            if (new_block < 0) return -1;
+            parent.direct_blocks[i] = new_block;
+            memset(block, 0, BLOCK_SIZE);
+        } else {
+            disk_read(parent.direct_blocks[i], block);
+        }
+
+        int count = BLOCK_SIZE / sizeof(DirectoryEntry);
+        for (int j = 0; j < count; j++) {
+            if (entries[j].inum == 0) {
+                entries[j].inum = new_inum;
+                strncpy(entries[j].name, parts[count - 1], MAX_FILENAME_LEN);
+                entries[j].name[MAX_FILENAME_LEN] = '\0';
+
+                disk_write(parent.direct_blocks[i], block);
+                parent.size += sizeof(DirectoryEntry);
+                write_inode(parent_inum, &parent);
+                found_slot = 1;
+                break;
+            }
+        }
+    }
+
+    return found_slot ? 0 : -1;
+}
