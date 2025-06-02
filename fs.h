@@ -2,6 +2,7 @@
 #define FS_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define BLOCK_SIZE 1024
 #define BLOCK_COUNT 1024
@@ -65,5 +66,11 @@ int path_to_inode(const char *path, int *out_inum, int want_parent);
 
 // Directory operations
 int mkdir_fs(const char *path);
+
+// File operations
+int create_fs(const char *path);
+int write_fs(const char *path, const void *data, size_t size);
+int read_fs(const char *path, void *buffer, size_t size);
+
 
 #endif
