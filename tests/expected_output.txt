@@ -1,0 +1,12 @@
+Disk formatted successfully.
+Directory /docs created successfully.
+File /docs/test.txt created successfully.
+Wrote content to /docs/test.txt.
+Read 5 bytes from /docs/test.txt: "Hello"
+Contents of /:
+ - docs (inode: 1)
+Contents of /docs:
+ - test.txt (inode: 2)
+Deleted file /docs/test.txt successfully.
+Removed directory /docs successfully.
+Contents of /:

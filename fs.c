@@ -372,9 +372,6 @@ int mkdir_fs(const char *path) {
                     return -1;
                 }
 
-                printf("mkdir_fs: Created directory '%s' (inode %d) under parent inode %d\n",
-                       dirname, new_inum, parent_inum);
-
                 entry_added = 1;
                 break;
             }
@@ -843,5 +840,29 @@ int ls_fs(const char *path, DirectoryEntry *entries, int max_entries) {
     return total_found;
 }
 
+// Initialize the filesystem
+static int fs_initialized = 0;
 
+int init_fs(const char* disk_path) {
+    if (fs_initialized) {
+        return 0; // Already initialized
+    }
+    
+    if (disk_open(disk_path) != 0) {
+        return -1;
+    }
+    
+    // Load all necessary filesystem metadata
+    load_bitmap();
+    
+    fs_initialized = 1;
+    return 0;
+}
 
+void cleanup_fs() {
+    if (fs_initialized) {
+        save_bitmap(); // Ensure bitmap is saved
+        disk_close();
+        fs_initialized = 0;
+    }
+}

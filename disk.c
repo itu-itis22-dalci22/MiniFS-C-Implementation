@@ -6,7 +6,7 @@
 
 static FILE *disk_file = NULL;
 
-int disk_open(const char *path) {
+int disk_open(const char *path) {  
     disk_file = fopen(path, "r+b");
     return disk_file != NULL ? 0 : -1;
 }

@@ -42,6 +42,10 @@ typedef struct {
 // --- Function declarations ---
 int mkfs_fs(const char *path);
 
+// File system initialization and cleanup
+int init_fs(const char* disk_path);
+void cleanup_fs();
+
 // --- Bitmap function declarations ---
 void load_bitmap();
 void save_bitmap();

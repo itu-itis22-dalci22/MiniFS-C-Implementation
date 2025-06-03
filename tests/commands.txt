@@ -1,0 +1,10 @@
+./mini_fs mkfs
+./mini_fs mkdir_fs /docs
+./mini_fs create_fs /docs/test.txt
+./mini_fs write_fs /docs/test.txt Hello
+./mini_fs read_fs /docs/test.txt
+./mini_fs ls_fs /
+./mini_fs ls_fs /docs
+./mini_fs delete_fs /docs/test.txt
+./mini_fs rmdir_fs /docs
+./mini_fs ls_fs /
