@@ -3,9 +3,25 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <time.h>
+
 
 // Global buffer for bitmap (loaded once)
 static uint8_t bitmap[BLOCK_SIZE];
+
+void log_debug(const char *format, ...) {
+    FILE *log_file = fopen("run_log.txt", "a");
+    if (!log_file) return;
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(log_file, format, args);
+    fprintf(log_file, "\n");
+    va_end(args);
+
+    fclose(log_file);
+}
 
 // Load bitmap from disk
 void load_bitmap() {
@@ -42,6 +58,7 @@ int allocate_block() {
         if (is_block_free(block_num)) {
             mark_block_used(block_num);
             save_bitmap();
+            log_debug("[DEBUG] Allocated data block %d", block_num);
             return block_num;
         }
     }
@@ -52,6 +69,7 @@ int allocate_block() {
 void free_block(int block_num) {
     mark_block_free(block_num);
     save_bitmap();
+    log_debug("[DEBUG] Freed data block %d", block_num);
 }
 
 // Inode operations
@@ -133,6 +151,7 @@ int allocate_inode() {
             inode.size = 0;
             memset(inode.direct_blocks, 0, sizeof(inode.direct_blocks));
             write_inode(i, &inode);
+            log_debug("[DEBUG] Allocated inode %d", i);
             return i;
         }
     }
@@ -144,6 +163,7 @@ void free_inode(int inum) {
     if (read_inode(inum, &inode) != 0) return;
     inode.is_valid = 0;
     write_inode(inum, &inode);
+    log_debug("[DEBUG] Freed inode %d", inum);
 }
 
 // Create a new filesystem on the disk

@@ -1,0 +1,7 @@
+[DEBUG] Allocated inode 1
+[DEBUG] Allocated data block 11
+[DEBUG] Allocated inode 2
+[DEBUG] Allocated data block 12
+[DEBUG] Allocated data block 13
+[DEBUG] Freed data block 13
+[DEBUG] Freed data block 12
